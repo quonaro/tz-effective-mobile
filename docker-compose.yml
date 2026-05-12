@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tz-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tz-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tz-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    networks:
+      - tz-network
+
+  migrations:
+    image: migrate/migrate:v4.18.1
+    container_name: tz-migrations
+    env_file:
+      - .env
+    command: -path=/migrations -database=${DATABASE_URL} up
+    volumes:
+      - ./backend/internal/migrations:/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - tz-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: tz-frontend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    networks:
+      - tz-network
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: tz-caddy
+    restart: unless-stopped
+    ports:
+      - "13420:80"
+    volumes:
+      - ./Caddyfile.container:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - tz-network
+
+volumes:
+  postgres_data:
+    name: tz-postgres-data
+  caddy_data:
+    name: tz-caddy-data
+  caddy_config:
+    name: tz-caddy-config
+
+networks:
+  tz-network:
+    name: tz-network
+    driver: bridge

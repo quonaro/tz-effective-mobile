@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.875rem;
+    /* Brand colors - dark for light theme, light for dark theme */
+    --brand: #4a5a00;
+    --brand-dim: rgba(74, 90, 0, 0.12);
+  }
+
+  .dark {
+    --background: 26 10% 10%;
+    --foreground: 0 0% 98%;
+    --card: 26 10% 12%;
+    --card-foreground: 0 0% 98%;
+    --popover: 26 10% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 75%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 24% 22%;
+    --input: 217 24% 22%;
+    --ring: 240 4.9% 83.9%;
+    /* Brand colors - light for dark theme */
+    --brand: #edfc8d;
+    --brand-dim: rgba(237, 252, 141, 0.15);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(237, 252, 141, 0.15), transparent),
+      hsl(var(--background));
+  }
+
+  .dark body {
+    background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(237, 252, 141, 0.08), transparent),
+      hsl(var(--background));
+  }
+}
+
+@layer base {
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #6b7280;
+  }
+}
+
+/* Calendar picker icon styling for date/month inputs */
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  filter: invert(0);
+}
+
+input[type="month"]::-webkit-calendar-picker-indicator:hover,
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.dark input[type="month"]::-webkit-calendar-picker-indicator,
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.8;
+}
