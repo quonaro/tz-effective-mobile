@@ -15,7 +15,7 @@ import (
 type SubscriptionService interface {
 	Create(ctx context.Context, input domain.CreateSubscriptionInput) (*domain.Subscription, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Subscription, error)
-	Update(ctx context.Context, id uuid.UUID, input domain.UpdateSubscriptionInput) error
+	Update(ctx context.Context, id uuid.UUID, startDateStr, endDateStr *string, input domain.UpdateSubscriptionInput) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	List(ctx context.Context, input domain.ListSubscriptionsInput) ([]domain.Subscription, int, error)
 	TotalCost(ctx context.Context, input domain.TotalCostInput) (int, error)
@@ -74,18 +74,20 @@ func (s *subscriptionService) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	return sub, nil
 }
 
-func (s *subscriptionService) Update(ctx context.Context, id uuid.UUID, input domain.UpdateSubscriptionInput) error {
-	if input.StartDate != nil {
-		_, err := domain.ParseMonthYear(*input.StartDate)
+func (s *subscriptionService) Update(ctx context.Context, id uuid.UUID, startDateStr, endDateStr *string, input domain.UpdateSubscriptionInput) error {
+	if startDateStr != nil {
+		parsed, err := domain.ParseMonthYear(*startDateStr)
 		if err != nil {
 			return err
 		}
+		input.StartDate = &parsed
 	}
-	if input.EndDate != nil {
-		_, err := domain.ParseMonthYear(*input.EndDate)
+	if endDateStr != nil {
+		parsed, err := domain.ParseMonthYear(*endDateStr)
 		if err != nil {
 			return err
 		}
+		input.EndDate = &parsed
 	}
 
 	if err := s.repo.Update(ctx, id, input); err != nil {

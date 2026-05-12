@@ -53,6 +53,7 @@ function toggleTheme() {
     <main class="mx-auto w-full max-w-screen-xl p-6 flex-grow">
       <slot />
     </main>
+    <Toaster />
     <footer class="border-t border-border bg-card px-6 py-6 mt-auto">
       <div class="mx-auto w-full max-w-screen-xl text-center">
         <p class="text-base text-muted-foreground mb-2">

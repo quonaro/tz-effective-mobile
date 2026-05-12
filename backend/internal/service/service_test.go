@@ -182,7 +182,24 @@ func TestSubscriptionService_Update(t *testing.T) {
 
 		mockRepo.On("Update", ctx, id, mock.Anything).Return(nil)
 
-		err := service.Update(ctx, id, input)
+		err := service.Update(ctx, id, nil, nil, input)
+
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("update with valid dates", func(t *testing.T) {
+		mockRepo := new(repository.MockSubscriptionRepository)
+		service := setupTestService(mockRepo)
+		ctx := context.Background()
+		id := uuid.New()
+		startDateStr := "03-2025"
+		endDateStr := "12-2025"
+		input := domain.UpdateSubscriptionInput{}
+
+		mockRepo.On("Update", ctx, id, mock.Anything).Return(nil)
+
+		err := service.Update(ctx, id, &startDateStr, &endDateStr, input)
 
 		assert.NoError(t, err)
 		mockRepo.AssertExpectations(t)
@@ -194,11 +211,23 @@ func TestSubscriptionService_Update(t *testing.T) {
 		ctx := context.Background()
 		id := uuid.New()
 		invalidDate := "invalid"
-		input := domain.UpdateSubscriptionInput{
-			StartDate: &invalidDate,
-		}
+		input := domain.UpdateSubscriptionInput{}
 
-		err := service.Update(ctx, id, input)
+		err := service.Update(ctx, id, &invalidDate, nil, input)
+
+		assert.Error(t, err)
+		assert.Equal(t, domain.ErrInvalidDateFormat, err)
+	})
+
+	t.Run("invalid end date format", func(t *testing.T) {
+		mockRepo := new(repository.MockSubscriptionRepository)
+		service := setupTestService(mockRepo)
+		ctx := context.Background()
+		id := uuid.New()
+		invalidDate := "invalid"
+		input := domain.UpdateSubscriptionInput{}
+
+		err := service.Update(ctx, id, nil, &invalidDate, input)
 
 		assert.Error(t, err)
 		assert.Equal(t, domain.ErrInvalidDateFormat, err)
@@ -213,7 +242,7 @@ func TestSubscriptionService_Update(t *testing.T) {
 
 		mockRepo.On("Update", ctx, id, mock.Anything).Return(errors.New("db error"))
 
-		err := service.Update(ctx, id, input)
+		err := service.Update(ctx, id, nil, nil, input)
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "update subscription")

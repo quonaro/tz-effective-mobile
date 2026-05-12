@@ -77,7 +77,20 @@ func (r *subscriptionRepo) Update(ctx context.Context, id uuid.UUID, input domai
 		    updated_at = NOW()
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, query, id, input.ServiceName, input.Price, input.StartDate, input.EndDate)
+	
+	var startDate, endDate interface{}
+	if input.StartDate != nil {
+		startDate = *input.StartDate
+	} else {
+		startDate = nil
+	}
+	if input.EndDate != nil {
+		endDate = *input.EndDate
+	} else {
+		endDate = nil
+	}
+	
+	_, err := r.db.Exec(ctx, query, id, input.ServiceName, input.Price, startDate, endDate)
 	if err != nil {
 		r.logger.Error("failed to update subscription", slog.String("error", err.Error()))
 		return fmt.Errorf("update subscription: %w", err)
@@ -130,10 +143,20 @@ func (r *subscriptionRepo) List(ctx context.Context, input domain.ListSubscripti
 		offset = 0
 	}
 
+	sortBy := "created_at"
+	if input.SortBy == "price" {
+		sortBy = "price"
+	}
+
+	sortOrder := "DESC"
+	if input.SortOrder == "asc" {
+		sortOrder = "ASC"
+	}
+
 	query := fmt.Sprintf(
 		`SELECT id, service_name, price, user_id, start_date, end_date, created_at, updated_at
-		 FROM subscriptions %s ORDER BY created_at DESC LIMIT $%d OFFSET $%d`,
-		where, argIdx, argIdx+1,
+		 FROM subscriptions %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
+		where, sortBy, sortOrder, argIdx, argIdx+1,
 	)
 	args = append(args, limit, offset)
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useApi } from '~/composables/useApi'
+import { useToast } from '~/composables/useToast'
 import type { Subscription, SubscriptionListResponse } from '~/types'
 
 // Date format conversion helpers: MM-YYYY ↔ YYYY-MM
@@ -37,6 +38,7 @@ function generateUUID(): string {
 }
 
 const { $api } = useApi()
+const { success } = useToast()
 const subscriptions = ref<Subscription[]>([])
 const total = ref(0)
 const loading = ref(false)
@@ -133,44 +135,55 @@ function goToPage(page: number) {
 }
 
 async function saveSubscription() {
-  if (editingId.value) {
-    // PUT update - без user_id
-    const payload: any = {
-      service_name: form.value.service_name,
-      price: Number(form.value.price),
-      start_date: form.value.start_date,
+  try {
+    if (editingId.value) {
+      // PUT update - без user_id
+      const payload: any = {
+        service_name: form.value.service_name,
+        price: Number(form.value.price),
+        start_date: form.value.start_date,
+      }
+      if (form.value.end_date) {
+        payload.end_date = form.value.end_date
+      }
+      await $api(`/subscriptions/${editingId.value}`, {
+        method: 'PUT',
+        body: payload,
+      })
+      success('Subscription updated', form.value.service_name)
+    } else {
+      // POST create - с user_id
+      const payload: any = {
+        service_name: form.value.service_name,
+        price: Number(form.value.price),
+        user_id: form.value.user_id,
+        start_date: form.value.start_date,
+      }
+      if (form.value.end_date) {
+        payload.end_date = form.value.end_date
+      }
+      await $api('/subscriptions', {
+        method: 'POST',
+        body: payload,
+      })
+      success('Subscription created', form.value.service_name)
     }
-    if (form.value.end_date) {
-      payload.end_date = form.value.end_date
-    }
-    await $api(`/subscriptions/${editingId.value}`, {
-      method: 'PUT',
-      body: payload,
-    })
-  } else {
-    // POST create - с user_id
-    const payload: any = {
-      service_name: form.value.service_name,
-      price: Number(form.value.price),
-      user_id: form.value.user_id,
-      start_date: form.value.start_date,
-    }
-    if (form.value.end_date) {
-      payload.end_date = form.value.end_date
-    }
-    await $api('/subscriptions', {
-      method: 'POST',
-      body: payload,
-    })
-  }
 
-  resetForm()
-  await loadSubscriptions()
+    resetForm()
+    await loadSubscriptions()
+  } catch {
+    // Error is handled by useApi interceptor
+  }
 }
 
 async function deleteSubscription(id: string) {
-  await $api(`/subscriptions/${id}`, { method: 'DELETE' })
-  await loadSubscriptions()
+  try {
+    await $api(`/subscriptions/${id}`, { method: 'DELETE' })
+    success('Subscription deleted', id.slice(0, 8))
+    await loadSubscriptions()
+  } catch {
+    // Error is handled by useApi interceptor
+  }
 }
 
 function editSubscription(sub: Subscription) {

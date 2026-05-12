@@ -65,19 +65,30 @@ func NewRouter(subService service.SubscriptionService) chi.Router {
 	})
 
 	// Update
+	type UpdateSubscriptionRequest struct {
+		ServiceName *string `json:"service_name,omitempty" validate:"omitempty,min=1,max=255"`
+		Price       *int    `json:"price,omitempty" validate:"omitempty,min=0"`
+		StartDate   *string `json:"start_date,omitempty"`
+		EndDate     *string `json:"end_date,omitempty"`
+	}
+
 	huma.Register(api, huma.Operation{
 		OperationID: "update-subscription",
 		Method:      http.MethodPut,
 		Path:        "/subscriptions/{id}",
 	}, func(ctx context.Context, input *struct {
 		ID   string `path:"id" validate:"required,uuid"`
-		Body domain.UpdateSubscriptionInput
+		Body UpdateSubscriptionRequest
 	}) (*struct{}, error) {
 		id, err := uuid.Parse(input.ID)
 		if err != nil {
 			return nil, huma.Error400BadRequest("invalid id format", err)
 		}
-		if err := subService.Update(ctx, id, input.Body); err != nil {
+		updateInput := domain.UpdateSubscriptionInput{
+			ServiceName: input.Body.ServiceName,
+			Price:       input.Body.Price,
+		}
+		if err := subService.Update(ctx, id, input.Body.StartDate, input.Body.EndDate, updateInput); err != nil {
 			return nil, err
 		}
 		return &struct{}{}, nil

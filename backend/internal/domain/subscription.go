@@ -32,15 +32,17 @@ type CreateSubscriptionInput struct {
 }
 
 type UpdateSubscriptionInput struct {
-	ServiceName *string `json:"service_name,omitempty" validate:"omitempty,min=1,max=255"`
-	Price       *int    `json:"price,omitempty" validate:"omitempty,min=0"`
-	StartDate   *string `json:"start_date,omitempty"`
-	EndDate     *string `json:"end_date,omitempty"`
+	ServiceName *string    `json:"service_name,omitempty" validate:"omitempty,min=1,max=255"`
+	Price       *int       `json:"price,omitempty" validate:"omitempty,min=0"`
+	StartDate   *time.Time `json:"start_date,omitempty"`
+	EndDate     *time.Time `json:"end_date,omitempty"`
 }
 
 type ListSubscriptionsInput struct {
 	UserID      uuid.UUID `json:"user_id,omitempty" query:"user_id"`
 	ServiceName string    `json:"service_name,omitempty" query:"service_name"`
+	SortBy      string    `json:"sort_by,omitempty" query:"sort_by"`       // price, created_at
+	SortOrder   string    `json:"sort_order,omitempty" query:"sort_order"` // asc, desc
 	Limit       int       `json:"limit,omitempty" query:"limit"`
 	Offset      int       `json:"offset,omitempty" query:"offset"`
 }
