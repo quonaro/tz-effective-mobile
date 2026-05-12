@@ -97,8 +97,7 @@ jobs:
         git rm -rf . || true
 
         # Add built artifacts
-        cp /tmp/dist/* .
-        cp -r /tmp/dist/migrations . 2>/dev/null || true
+        cp -r /tmp/dist/. .
 
         # Add files to git
         git add -A
