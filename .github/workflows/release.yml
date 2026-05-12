@@ -1,0 +1,110 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+    - main
+
+env:
+  BACKEND_IMAGE: tz-backend
+  FRONTEND_IMAGE: tz-frontend
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build backend image
+      run: |
+        docker build -t ${{ env.BACKEND_IMAGE }}:latest ./backend
+
+    - name: Build frontend image
+      run: |
+        docker build -t ${{ env.FRONTEND_IMAGE }}:latest ./frontend
+
+    - name: Save images to tar.gz
+      run: |
+        mkdir -p dist
+        docker save ${{ env.BACKEND_IMAGE }}:latest | gzip > dist/${{ env.BACKEND_IMAGE }}.tar.gz
+        docker save ${{ env.FRONTEND_IMAGE }}:latest | gzip > dist/${{ env.FRONTEND_IMAGE }}.tar.gz
+
+    - name: Generate install.sh
+      run: |
+        cat > dist/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        BACKEND_IMAGE="tz-backend"
+        FRONTEND_IMAGE="tz-frontend"
+
+        echo "Loading Docker images..."
+
+        if [ -f "$SCRIPT_DIR/${BACKEND_IMAGE}.tar.gz" ]; then
+            echo "Loading backend image..."
+            gunzip -c "$SCRIPT_DIR/${BACKEND_IMAGE}.tar.gz" | docker load
+        else
+            echo "Error: ${BACKEND_IMAGE}.tar.gz not found"
+            exit 1
+        fi
+
+        if [ -f "$SCRIPT_DIR/${FRONTEND_IMAGE}.tar.gz" ]; then
+            echo "Loading frontend image..."
+            gunzip -c "$SCRIPT_DIR/${FRONTEND_IMAGE}.tar.gz" | docker load
+        else
+            echo "Error: ${FRONTEND_IMAGE}.tar.gz not found"
+            exit 1
+        fi
+
+        echo "Images loaded successfully!"
+        echo ""
+        echo "To run the application:"
+        echo "  docker compose up -d"
+        echo ""
+        echo "Or with custom .env file:"
+        echo "  docker compose --env-file .env up -d"
+        EOF
+
+        chmod +x dist/install.sh
+
+    - name: Generate production docker-compose.yml
+      run: |
+        echo 'c2VydmljZXM6CiAgcG9zdGdyZXM6CiAgICBpbWFnZTogcG9zdGdyZXM6MTYtYWxwaW5lCiAgICBjb250YWluZXJfbmFtZTogdHotcG9zdGdyZXMKICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZfZmlsZToKICAgICAgLSAuZW52CiAgICB2b2x1bWVzOgogICAgICAtIHBvc3RncmVzX2RhdGE6L3Zhci9saWIvcG9zdGdyZXNxbC9kYXRhCiAgICBoZWFsdGhjaGVjazoKICAgICAgdGVzdDogWyAiQ01ELVNIRUxMIiwgInBnX2lzcmVhZHkgLVUgJHtQT1NUR1JFU19VU0VSfSAtZCAke1BPU1RHUkVTX0RCfSIgXQogICAgICBpbnRlcnZhbDogNXMKICAgICAgdGltZW91dDogNXMKICAgICAgcmV0cmllczogMTAKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCiAgYmFja2VuZDoKICAgIGltYWdlOiB0ei1iYWNrZW5kOmxhdGVzdAogICAgY29udGFpbmVyX25hbWU6IHR6LWJhY2tlbmQKICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZfZmlsZToKICAgICAgLSAuZW52CiAgICBkZXBlbmRzX29uOgogICAgICBwb3N0Z3JlczoKICAgICAgICBjb25kaXRpb246IHNlcnZpY2VfaGVhbHRoeQogICAgICBtaWdyYXRpb25zOgogICAgICAgIGNvbmRpdGlvbjogc2VydmljZV9jb21wbGV0ZWRfc3VjY2Vzc2Z1bGx5CiAgICBwb3J0czoKICAgICAgLSAiJHtCQUNLRU5EX1BPUlR9OiR7QkFDS0VORF9QT1JUfSIKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCiAgbWlncmF0aW9uczoKICAgIGltYWdlOiBtaWdyYXRlL21pZ3JhdGU6djQuMTguMQogICAgY29udGFpbmVyX25hbWU6IHR6LW1pZ3JhdGlvbnMKICAgIGVudl9maWxlOgogICAgICAtIC5lbnYKICAgIGNvbW1hbmQ6IC1wYXRoPS9taWdyYXRpb25zIC1kYXRhYmFzZT0ke0RBVEFCQVNFX1VSTH0gdXAKICAgIHZvbHVtZXM6CiAgICAgIC0gLi9taWdyYXRpb25zOi9taWdyYXRpb25zCiAgICBkZXBlbmRzX29uOgogICAgICBwb3N0Z3JlczoKICAgICAgICBjb25kaXRpb246IHNlcnZpY2VfaGVhbHRoeQogICAgbmV0d29ya3M6CiAgICAgIC0gdHotbmV0d29yawoKICBmcm9udGVuZDoKICAgIGltYWdlOiB0ei1mcm9udGVuZDpsYXRlc3QKICAgIGNvbnRhaW5lcl9uYW1lOiB0ei1mcm9udGVuZAogICAgcmVzdGFydDogdW5sZXNzLXN0b3BwZWQKICAgIGVudl9maWxlOgogICAgICAtIC5lbnYKICAgIGRlcGVuZHNfb246CiAgICAgIC0gYmFja2VuZAogICAgbmV0d29ya3M6CiAgICAgIC0gdHotbmV0d29yawoKICBjYWRkeToKICAgIGltYWdlOiBjYWRkeToyLWFscGluZQogICAgY29udGFpbmVyX25hbWU6IHR6LWNhZGR5CiAgICByZXN0YXJ0OiB1bmxlc3Mtc3RvcHBlZAogICAgcG9ydHM6CiAgICAgIC0gIjgwOjgwIgogICAgdm9sdW1lczoKICAgICAgLSAuL0NhZGR5ZmlsZTovZXRjL2NhZGR5L0NhZGR5ZmlsZTpSTwogICAgICAtIGNhZGR5X2RhdGE6L2RhdGEKICAgICAgLSBjYWRkeV9jb25maWc6L2NvbmZpZwogICAgZGVwZW5kc19vbjoKICAgICAgLSBiYWNrZW5kCiAgICAgIC0gZnJvbnRlbmQKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCnZvbHVtZXM6CiAgcG9zdGdyZXNfZGF0YToKICAgIG5hbWU6IHR6LXBvc3RncmVzLWRhdGEKICBjYWRkeV9kYXRhOgogICAgbmFtZTogdHotY2FkZHktZGF0YQogIGNhZGR5X2NvbmZpZzoKICAgIG5hbWU6IHR6LWNhZGR5LWNvbmZpZwoKbmV0d29ya3M6CiAgdHotbmV0d29yazoKICAgIG5hbWU6IHR6LW5ldHdvcmsKICAgIGRyaXZlcjogYnJpZGdlCg==' | base64 -d > dist/docker-compose.yml
+        # Copy supporting files
+        cp Caddyfile.container dist/Caddyfile
+        cp .env.example dist/.env.example
+        mkdir -p dist/migrations
+        cp -r backend/internal/migrations/* dist/migrations/ 2>/dev/null || echo "No migrations found"
+
+    - name: Update prod branch
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Create or checkout prod branch
+        git fetch origin prod || true
+        git checkout -B prod
+
+        # Remove all tracked files
+        git rm -rf . || true
+
+        # Add built artifacts
+        mv dist/* .
+        rmdir dist
+
+        # Add files to git
+        git add -A
+        git commit -m "chore(release): build images from main @ $(date -u +'%Y-%m-%d %H:%M:%S UTC')" || echo "No changes to commit"
+
+        # Push to prod branch
+        git push origin prod --force
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
