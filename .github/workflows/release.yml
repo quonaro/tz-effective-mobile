@@ -30,15 +30,17 @@ jobs:
       run: |
         docker build -t ${{ env.FRONTEND_IMAGE }}:latest ./frontend
 
-    - name: Save images to tar.gz
+    - name: Prepare release artifacts
       run: |
-        mkdir -p dist
-        docker save ${{ env.BACKEND_IMAGE }}:latest | gzip > dist/${{ env.BACKEND_IMAGE }}.tar.gz
-        docker save ${{ env.FRONTEND_IMAGE }}:latest | gzip > dist/${{ env.FRONTEND_IMAGE }}.tar.gz
+        export DIST_DIR=/tmp/dist
+        mkdir -p $DIST_DIR
 
-    - name: Generate install.sh
-      run: |
-        cat > dist/install.sh << 'EOF'
+        # Save images
+        docker save ${{ env.BACKEND_IMAGE }}:latest | gzip > $DIST_DIR/${{ env.BACKEND_IMAGE }}.tar.gz
+        docker save ${{ env.FRONTEND_IMAGE }}:latest | gzip > $DIST_DIR/${{ env.FRONTEND_IMAGE }}.tar.gz
+
+        # Generate install.sh
+        cat > $DIST_DIR/install.sh << 'EOF'
         #!/bin/bash
         set -e
 
@@ -72,33 +74,31 @@ jobs:
         echo "Or with custom .env file:"
         echo "  docker compose --env-file .env up -d"
         EOF
+        chmod +x $DIST_DIR/install.sh
 
-        chmod +x dist/install.sh
+        # Generate docker-compose.yml
+        echo 'c2VydmljZXM6CiAgcG9zdGdyZXM6CiAgICBpbWFnZTogcG9zdGdyZXM6MTYtYWxwaW5lCiAgICBjb250YWluZXJfbmFtZTogdHotcG9zdGdyZXMKICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZfZmlsZToKICAgICAgLSAuZW52CiAgICB2b2x1bWVzOgogICAgICAtIHBvc3RncmVzX2RhdGE6L3Zhci9saWIvcG9zdGdyZXNxbC9kYXRhCiAgICBoZWFsdGhjaGVjazoKICAgICAgdGVzdDogWyAiQ01ELVNIRUxMIiwgInBnX2lzcmVhZHkgLVUgJHtQT1NUR1JFU19VU0VSfSAtZCAke1BPU1RHUkVTX0RCfSIgXQogICAgICBpbnRlcnZhbDogNXMKICAgICAgdGltZW91dDogNXMKICAgICAgcmV0cmllczogMTAKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCiAgYmFja2VuZDoKICAgIGltYWdlOiB0ei1iYWNrZW5kOmxhdGVzdAogICAgY29udGFpbmVyX25hbWU6IHR6LWJhY2tlbmQKICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZfZmlsZToKICAgICAgLSAuZW52CiAgICBkZXBlbmRzX29uOgogICAgICBwb3N0Z3JlczoKICAgICAgICBjb25kaXRpb246IHNlcnZpY2VfaGVhbHRoeQogICAgICBtaWdyYXRpb25zOgogICAgICAgIGNvbmRpdGlvbjogc2VydmljZV9jb21wbGV0ZWRfc3VjY2Vzc2Z1bGx5CiAgICBwb3J0czoKICAgICAgLSAiJHtCQUNLRU5EX1BPUlR9OiR7QkFDS0VORF9QT1JUfSIKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCiAgbWlncmF0aW9uczoKICAgIGltYWdlOiBtaWdyYXRlL21pZ3JhdGU6djQuMTguMQogICAgY29udGFpbmVyX25hbWU6IHR6LW1pZ3JhdGlvbnMKICAgIGVudl9maWxlOgogICAgICAtIC5lbnYKICAgIGNvbW1hbmQ6IC1wYXRoPS9taWdyYXRpb25zIC1kYXRhYmFzZT0ke0RBVEFCQVNFX1VSTH0gdXAKICAgIHZvbHVtZXM6CiAgICAgIC0gLi9taWdyYXRpb25zOi9taWdyYXRpb25zCiAgICBkZXBlbmRzX29uOgogICAgICBwb3N0Z3JlczoKICAgICAgICBjb25kaXRpb246IHNlcnZpY2VfaGVhbHRoeQogICAgbmV0d29ya3M6CiAgICAgIC0gdHotbmV0d29yawoKICBmcm9udGVuZDoKICAgIGltYWdlOiB0ei1mcm9udGVuZDpsYXRlc3QKICAgIGNvbnRhaW5lcl9uYW1lOiB0ei1mcm9udGVuZAogICAgcmVzdGFydDogdW5sZXNzLXN0b3BwZWQKICAgIGVudl9maWxlOgogICAgICAtIC5lbnYKICAgIGRlcGVuZHNfb246CiAgICAgIC0gYmFja2VuZAogICAgbmV0d29ya3M6CiAgICAgIC0gdHotbmV0d29yawoKICBjYWRkeToKICAgIGltYWdlOiBjYWRkeToyLWFscGluZQogICAgY29udGFpbmVyX25hbWU6IHR6LWNhZGR5CiAgICByZXN0YXJ0OiB1bmxlc3Mtc3RvcHBlZAogICAgcG9ydHM6CiAgICAgIC0gIjgwOjgwIgogICAgdm9sdW1lczoKICAgICAgLSAuL0NhZGR5ZmlsZTovZXRjL2NhZGR5L0NhZGR5ZmlsZTpSTwogICAgICAtIGNhZGR5X2RhdGE6L2RhdGEKICAgICAgLSBjYWRkeV9jb25maWc6L2NvbmZpZwogICAgZGVwZW5kc19vbjoKICAgICAgLSBiYWNrZW5kCiAgICAgIC0gZnJvbnRlbmQKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCnZvbHVtZXM6CiAgcG9zdGdyZXNfZGF0YToKICAgIG5hbWU6IHR6LXBvc3RncmVzLWRhdGEKICBjYWRkeV9kYXRhOgogICAgbmFtZTogdHotY2FkZHktZGF0YQogIGNhZGR5X2NvbmZpZzoKICAgIG5hbWU6IHR6LWNhZGR5LWNvbmZpZwoKbmV0d29ya3M6CiAgdHotbmV0d29yazoKICAgIG5hbWU6IHR6LW5ldHdvcmsKICAgIGRyaXZlcjogYnJpZGdlCg==' | base64 -d > $DIST_DIR/docker-compose.yml
 
-    - name: Generate production docker-compose.yml
-      run: |
-        echo 'c2VydmljZXM6CiAgcG9zdGdyZXM6CiAgICBpbWFnZTogcG9zdGdyZXM6MTYtYWxwaW5lCiAgICBjb250YWluZXJfbmFtZTogdHotcG9zdGdyZXMKICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZfZmlsZToKICAgICAgLSAuZW52CiAgICB2b2x1bWVzOgogICAgICAtIHBvc3RncmVzX2RhdGE6L3Zhci9saWIvcG9zdGdyZXNxbC9kYXRhCiAgICBoZWFsdGhjaGVjazoKICAgICAgdGVzdDogWyAiQ01ELVNIRUxMIiwgInBnX2lzcmVhZHkgLVUgJHtQT1NUR1JFU19VU0VSfSAtZCAke1BPU1RHUkVTX0RCfSIgXQogICAgICBpbnRlcnZhbDogNXMKICAgICAgdGltZW91dDogNXMKICAgICAgcmV0cmllczogMTAKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCiAgYmFja2VuZDoKICAgIGltYWdlOiB0ei1iYWNrZW5kOmxhdGVzdAogICAgY29udGFpbmVyX25hbWU6IHR6LWJhY2tlbmQKICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBlbnZfZmlsZToKICAgICAgLSAuZW52CiAgICBkZXBlbmRzX29uOgogICAgICBwb3N0Z3JlczoKICAgICAgICBjb25kaXRpb246IHNlcnZpY2VfaGVhbHRoeQogICAgICBtaWdyYXRpb25zOgogICAgICAgIGNvbmRpdGlvbjogc2VydmljZV9jb21wbGV0ZWRfc3VjY2Vzc2Z1bGx5CiAgICBwb3J0czoKICAgICAgLSAiJHtCQUNLRU5EX1BPUlR9OiR7QkFDS0VORF9QT1JUfSIKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCiAgbWlncmF0aW9uczoKICAgIGltYWdlOiBtaWdyYXRlL21pZ3JhdGU6djQuMTguMQogICAgY29udGFpbmVyX25hbWU6IHR6LW1pZ3JhdGlvbnMKICAgIGVudl9maWxlOgogICAgICAtIC5lbnYKICAgIGNvbW1hbmQ6IC1wYXRoPS9taWdyYXRpb25zIC1kYXRhYmFzZT0ke0RBVEFCQVNFX1VSTH0gdXAKICAgIHZvbHVtZXM6CiAgICAgIC0gLi9taWdyYXRpb25zOi9taWdyYXRpb25zCiAgICBkZXBlbmRzX29uOgogICAgICBwb3N0Z3JlczoKICAgICAgICBjb25kaXRpb246IHNlcnZpY2VfaGVhbHRoeQogICAgbmV0d29ya3M6CiAgICAgIC0gdHotbmV0d29yawoKICBmcm9udGVuZDoKICAgIGltYWdlOiB0ei1mcm9udGVuZDpsYXRlc3QKICAgIGNvbnRhaW5lcl9uYW1lOiB0ei1mcm9udGVuZAogICAgcmVzdGFydDogdW5sZXNzLXN0b3BwZWQKICAgIGVudl9maWxlOgogICAgICAtIC5lbnYKICAgIGRlcGVuZHNfb246CiAgICAgIC0gYmFja2VuZAogICAgbmV0d29ya3M6CiAgICAgIC0gdHotbmV0d29yawoKICBjYWRkeToKICAgIGltYWdlOiBjYWRkeToyLWFscGluZQogICAgY29udGFpbmVyX25hbWU6IHR6LWNhZGR5CiAgICByZXN0YXJ0OiB1bmxlc3Mtc3RvcHBlZAogICAgcG9ydHM6CiAgICAgIC0gIjgwOjgwIgogICAgdm9sdW1lczoKICAgICAgLSAuL0NhZGR5ZmlsZTovZXRjL2NhZGR5L0NhZGR5ZmlsZTpSTwogICAgICAtIGNhZGR5X2RhdGE6L2RhdGEKICAgICAgLSBjYWRkeV9jb25maWc6L2NvbmZpZwogICAgZGVwZW5kc19vbjoKICAgICAgLSBiYWNrZW5kCiAgICAgIC0gZnJvbnRlbmQKICAgIG5ldHdvcmtzOgogICAgICAtIHR6LW5ldHdvcmsKCnZvbHVtZXM6CiAgcG9zdGdyZXNfZGF0YToKICAgIG5hbWU6IHR6LXBvc3RncmVzLWRhdGEKICBjYWRkeV9kYXRhOgogICAgbmFtZTogdHotY2FkZHktZGF0YQogIGNhZGR5X2NvbmZpZzoKICAgIG5hbWU6IHR6LWNhZGR5LWNvbmZpZwoKbmV0d29ya3M6CiAgdHotbmV0d29yazoKICAgIG5hbWU6IHR6LW5ldHdvcmsKICAgIGRyaXZlcjogYnJpZGdlCg==' | base64 -d > dist/docker-compose.yml
         # Copy supporting files
-        cp Caddyfile.container dist/Caddyfile
-        cp .env.example dist/.env.example
-        mkdir -p dist/migrations
-        cp -r backend/internal/migrations/* dist/migrations/ 2>/dev/null || echo "No migrations found"
+        cp Caddyfile.container $DIST_DIR/Caddyfile
+        cp .env.example $DIST_DIR/.env.example
+        mkdir -p $DIST_DIR/migrations
+        cp -r backend/internal/migrations/* $DIST_DIR/migrations/ 2>/dev/null || echo "No migrations found"
 
     - name: Update prod branch
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
 
-        # Create or checkout prod branch
-        git fetch origin prod || true
-        git checkout -B prod
+        # Create or checkout prod branch (orphan to have clean history)
+        git checkout --orphan prod
 
         # Remove all tracked files
         git rm -rf . || true
 
         # Add built artifacts
-        mv dist/* .
-        rmdir dist
+        cp /tmp/dist/* .
+        cp -r /tmp/dist/migrations . 2>/dev/null || true
 
         # Add files to git
         git add -A
