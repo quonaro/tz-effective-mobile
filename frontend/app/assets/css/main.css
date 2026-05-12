@@ -26,6 +26,7 @@
     --radius: 0.875rem;
     /* Brand colors - dark for light theme, light for dark theme */
     --brand: #4a5a00;
+    --brand-foreground: #ffffff;
     --brand-dim: rgba(74, 90, 0, 0.12);
   }
 
@@ -51,6 +52,7 @@
     --ring: 240 4.9% 83.9%;
     /* Brand colors - light for dark theme */
     --brand: #edfc8d;
+    --brand-foreground: #1a1a1a;
     --brand-dim: rgba(237, 252, 141, 0.15);
   }
 }

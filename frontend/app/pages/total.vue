@@ -247,7 +247,7 @@ async function calculateTotal() {
           />
         </div>
         <div class="md:col-span-2">
-          <button type="submit" class="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90 transition-colors">
+          <button type="submit" class="rounded-md bg-brand px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-brand/90 transition-colors">
             Calculate
           </button>
         </div>

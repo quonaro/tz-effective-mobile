@@ -260,7 +260,7 @@ onMounted(loadSubscriptions)
           </ClientOnly>
         </div>
         <div class="flex items-end gap-2 md:col-span-2">
-          <button type="submit" class="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90 transition-colors">
+          <button type="submit" class="rounded-md bg-brand px-4 py-2 text-sm font-medium text-[var(--brand-foreground)] hover:bg-brand/90 transition-colors">
             {{ editingId ? 'Update' : 'Create' }}
           </button>
           <button v-if="editingId" type="button" class="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-brand-dim hover:text-brand transition-colors" @click="resetForm">
@@ -349,7 +349,7 @@ onMounted(loadSubscriptions)
                 :class="[
                   'rounded-md px-3 py-1 text-sm transition-colors',
                   page === currentPage
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand text-[var(--brand-foreground)]'
                     : 'border border-border hover:bg-brand-dim hover:text-brand'
                 ]"
                 @click="goToPage(page)"
@@ -362,7 +362,7 @@ onMounted(loadSubscriptions)
                 :class="[
                   'rounded-md px-3 py-1 text-sm transition-colors',
                   currentPage > 5
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand text-[var(--brand-foreground)]'
                     : 'border border-border hover:bg-brand-dim hover:text-brand'
                 ]"
                 @click="goToPage(totalPages)"
