@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,7 +16,9 @@ import (
 	"subscriptions/internal/repository"
 	"subscriptions/internal/service"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 func parseLogLevel(level string) slog.Level {
@@ -54,13 +57,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	db, err := pgxpool.New(ctx, cfg.DatabaseURL)
-	if err != nil {
-		logger.Error("failed to connect to database", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	defer db.Close()
+	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(cfg.DatabaseURL)))
+	defer sqldb.Close()
 
+	db := bun.NewDB(sqldb, pgdialect.New())
 
 	repo := repository.NewSubscriptionRepository(db, logger)
 	subService := service.NewSubscriptionService(repo, logger)

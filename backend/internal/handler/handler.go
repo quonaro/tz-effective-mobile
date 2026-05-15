@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 
@@ -56,7 +57,7 @@ func NewRouter(subService service.SubscriptionService) chi.Router {
 		}
 		sub, err := subService.GetByID(ctx, id)
 		if err != nil {
-			if err == domain.ErrSubscriptionNotFound {
+			if errors.Is(err, domain.ErrSubscriptionNotFound) {
 				return nil, huma.Error404NotFound("subscription not found", err)
 			}
 			return nil, err
@@ -89,6 +90,9 @@ func NewRouter(subService service.SubscriptionService) chi.Router {
 			Price:       input.Body.Price,
 		}
 		if err := subService.Update(ctx, id, input.Body.StartDate, input.Body.EndDate, updateInput); err != nil {
+			if errors.Is(err, domain.ErrSubscriptionNotFound) {
+				return nil, huma.Error404NotFound("subscription not found", err)
+			}
 			return nil, err
 		}
 		return &struct{}{}, nil

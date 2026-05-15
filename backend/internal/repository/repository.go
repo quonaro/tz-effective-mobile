@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -9,8 +11,7 @@ import (
 	"subscriptions/internal/domain"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/uptrace/bun"
 )
 
 type SubscriptionRepository interface {
@@ -24,20 +25,16 @@ type SubscriptionRepository interface {
 }
 
 type subscriptionRepo struct {
-	db     *pgxpool.Pool
+	db     *bun.DB
 	logger *slog.Logger
 }
 
-func NewSubscriptionRepository(db *pgxpool.Pool, logger *slog.Logger) SubscriptionRepository {
+func NewSubscriptionRepository(db *bun.DB, logger *slog.Logger) SubscriptionRepository {
 	return &subscriptionRepo{db: db, logger: logger}
 }
 
 func (r *subscriptionRepo) Create(ctx context.Context, sub *domain.Subscription) error {
-	query := `
-		INSERT INTO subscriptions (id, service_name, price, user_id, start_date, end_date, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`
-	_, err := r.db.Exec(ctx, query, sub.ID, sub.ServiceName, sub.Price, sub.UserID, sub.StartDate, sub.EndDate, sub.CreatedAt, sub.UpdatedAt)
+	_, err := r.db.NewInsert().Model(sub).Exec(ctx)
 	if err != nil {
 		r.logger.Error("failed to create subscription", slog.String("error", err.Error()))
 		return fmt.Errorf("create subscription: %w", err)
@@ -47,61 +44,51 @@ func (r *subscriptionRepo) Create(ctx context.Context, sub *domain.Subscription)
 }
 
 func (r *subscriptionRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Subscription, error) {
-	query := `
-		SELECT id, service_name, price, user_id, start_date, end_date, created_at, updated_at
-		FROM subscriptions WHERE id = $1
-	`
-	row := r.db.QueryRow(ctx, query, id)
-
 	var sub domain.Subscription
-	var endDate *time.Time
-	err := row.Scan(&sub.ID, &sub.ServiceName, &sub.Price, &sub.UserID, &sub.StartDate, &endDate, &sub.CreatedAt, &sub.UpdatedAt)
+	err := r.db.NewSelect().Table("subscriptions").Where("id = ?", id).Scan(ctx, &sub)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrSubscriptionNotFound
 		}
 		r.logger.Error("failed to get subscription", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("get subscription: %w", err)
 	}
-	sub.EndDate = endDate
 	return &sub, nil
 }
 
 func (r *subscriptionRepo) Update(ctx context.Context, id uuid.UUID, input domain.UpdateSubscriptionInput) error {
-	query := `
-		UPDATE subscriptions
-		SET service_name = COALESCE($2, service_name),
-		    price = COALESCE($3, price),
-		    start_date = COALESCE($4, start_date),
-		    end_date = COALESCE($5, end_date),
-		    updated_at = NOW()
-		WHERE id = $1
-	`
-	
-	var startDate, endDate interface{}
+	query := r.db.NewUpdate().Table("subscriptions").Where("id = ?", id)
+
+	if input.ServiceName != nil {
+		query = query.Set("service_name = ?", *input.ServiceName)
+	}
+	if input.Price != nil {
+		query = query.Set("price = ?", *input.Price)
+	}
 	if input.StartDate != nil {
-		startDate = *input.StartDate
-	} else {
-		startDate = nil
+		query = query.Set("start_date = ?", *input.StartDate)
 	}
 	if input.EndDate != nil {
-		endDate = *input.EndDate
-	} else {
-		endDate = nil
+		query = query.Set("end_date = ?", *input.EndDate)
 	}
-	
-	_, err := r.db.Exec(ctx, query, id, input.ServiceName, input.Price, startDate, endDate)
+
+	res, err := query.Set("updated_at = NOW()").Exec(ctx)
 	if err != nil {
 		r.logger.Error("failed to update subscription", slog.String("error", err.Error()))
 		return fmt.Errorf("update subscription: %w", err)
 	}
+
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected == 0 {
+		return domain.ErrSubscriptionNotFound
+	}
+
 	r.logger.Info("subscription updated", slog.String("id", id.String()))
 	return nil
 }
 
 func (r *subscriptionRepo) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM subscriptions WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
+	_, err := r.db.NewDelete().Table("subscriptions").Where("id = ?", id).Exec(ctx)
 	if err != nil {
 		r.logger.Error("failed to delete subscription", slog.String("error", err.Error()))
 		return fmt.Errorf("delete subscription: %w", err)
@@ -111,73 +98,59 @@ func (r *subscriptionRepo) Delete(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *subscriptionRepo) List(ctx context.Context, input domain.ListSubscriptionsInput) ([]domain.Subscription, int, error) {
-	where := "WHERE 1=1"
-	args := []interface{}{}
-	argIdx := 1
-
-	if input.UserID != uuid.Nil {
-		where += fmt.Sprintf(" AND user_id = $%d", argIdx)
-		args = append(args, input.UserID)
-		argIdx++
-	}
-	if input.ServiceName != "" {
-		where += fmt.Sprintf(" AND service_name ILIKE $%d", argIdx)
-		args = append(args, "%"+input.ServiceName+"%")
-		argIdx++
-	}
-
-	countQuery := "SELECT COUNT(*) FROM subscriptions " + where
+	var subs []domain.Subscription
 	var total int
-	err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total)
-	if err != nil {
-		r.logger.Error("failed to count subscriptions", slog.String("error", err.Error()))
-		return nil, 0, fmt.Errorf("count subscriptions: %w", err)
-	}
 
-	limit := input.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-	offset := input.Offset
-	if offset < 0 {
-		offset = 0
-	}
+	err := r.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		countQuery := tx.NewSelect().Table("subscriptions")
+		if input.UserID != uuid.Nil {
+			countQuery = countQuery.Where("user_id = ?", input.UserID)
+		}
+		if input.ServiceName != "" {
+			countQuery = countQuery.Where("service_name ILIKE ?", "%"+input.ServiceName+"%")
+		}
+		if err := countQuery.ColumnExpr("COUNT(*)").Scan(ctx, &total); err != nil {
+			return fmt.Errorf("count subscriptions: %w", err)
+		}
 
-	sortBy := "created_at"
-	if input.SortBy == "price" {
-		sortBy = "price"
-	}
+		selectQuery := tx.NewSelect().Table("subscriptions")
+		if input.UserID != uuid.Nil {
+			selectQuery = selectQuery.Where("user_id = ?", input.UserID)
+		}
+		if input.ServiceName != "" {
+			selectQuery = selectQuery.Where("service_name ILIKE ?", "%"+input.ServiceName+"%")
+		}
 
-	sortOrder := "DESC"
-	if input.SortOrder == "asc" {
-		sortOrder = "ASC"
-	}
+		sortBy := "created_at"
+		if input.SortBy == "price" {
+			sortBy = "price"
+		}
+		sortOrder := "DESC"
+		if input.SortOrder == "asc" {
+			sortOrder = "ASC"
+		}
 
-	query := fmt.Sprintf(
-		`SELECT id, service_name, price, user_id, start_date, end_date, created_at, updated_at
-		 FROM subscriptions %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
-		where, sortBy, sortOrder, argIdx, argIdx+1,
-	)
-	args = append(args, limit, offset)
+		limit := input.Limit
+		if limit <= 0 {
+			limit = 20
+		}
+		offset := input.Offset
+		if offset < 0 {
+			offset = 0
+		}
 
-	rows, err := r.db.Query(ctx, query, args...)
+		if err := selectQuery.
+			OrderExpr("? ?", bun.Ident(sortBy), bun.Safe(sortOrder)).
+			Limit(limit).
+			Offset(offset).
+			Scan(ctx, &subs); err != nil {
+			return fmt.Errorf("list subscriptions: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
 		r.logger.Error("failed to list subscriptions", slog.String("error", err.Error()))
-		return nil, 0, fmt.Errorf("list subscriptions: %w", err)
-	}
-	defer rows.Close()
-
-	var subs []domain.Subscription
-	for rows.Next() {
-		var sub domain.Subscription
-		var endDate *time.Time
-		err := rows.Scan(&sub.ID, &sub.ServiceName, &sub.Price, &sub.UserID, &sub.StartDate, &endDate, &sub.CreatedAt, &sub.UpdatedAt)
-		if err != nil {
-			r.logger.Error("failed to scan subscription", slog.String("error", err.Error()))
-			return nil, 0, fmt.Errorf("scan subscription: %w", err)
-		}
-		sub.EndDate = endDate
-		subs = append(subs, sub)
+		return nil, 0, err
 	}
 
 	return subs, total, nil
@@ -193,50 +166,78 @@ func (r *subscriptionRepo) TotalCost(ctx context.Context, input domain.TotalCost
 		return 0, err
 	}
 
-	where := "WHERE start_date <= $1 AND (end_date IS NULL OR end_date >= $2)"
-	args := []interface{}{end.AddDate(0, 1, -1), start}
-	argIdx := 3
+	reqEnd := end.AddDate(0, 1, -1)
+
+	query := r.db.NewSelect().Table("subscriptions").
+		Where("start_date <= ?", reqEnd).
+		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+			return q.Where("end_date IS NULL").WhereOr("end_date >= ?", start)
+		})
 
 	if input.UserID != uuid.Nil {
-		where += fmt.Sprintf(" AND user_id = $%d", argIdx)
-		args = append(args, input.UserID)
-		argIdx++
+		query = query.Where("user_id = ?", input.UserID)
 	}
 	if input.ServiceName != "" {
-		where += fmt.Sprintf(" AND service_name ILIKE $%d", argIdx)
-		args = append(args, "%"+input.ServiceName+"%")
-		argIdx++
+		query = query.Where("service_name ILIKE ?", "%"+input.ServiceName+"%")
 	}
 
-	query := "SELECT COALESCE(SUM(price), 0) FROM subscriptions " + where
-	var total int
-	err = r.db.QueryRow(ctx, query, args...).Scan(&total)
-	if err != nil {
+	var subs []domain.Subscription
+	if err := query.Scan(ctx, &subs); err != nil {
 		r.logger.Error("failed to calculate total cost", slog.String("error", err.Error()))
 		return 0, fmt.Errorf("total cost: %w", err)
 	}
 
+	total := calculateTotalCost(subs, start, reqEnd)
 	return total, nil
 }
 
 func (r *subscriptionRepo) GetUniqueServiceNames(ctx context.Context) ([]string, error) {
-	query := `SELECT DISTINCT service_name FROM subscriptions ORDER BY service_name`
-	rows, err := r.db.Query(ctx, query)
+	var services []string
+	err := r.db.NewSelect().Table("subscriptions").
+		ColumnExpr("DISTINCT service_name").
+		OrderExpr("service_name").
+		Scan(ctx, &services)
 	if err != nil {
 		r.logger.Error("failed to get unique service names", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("get unique service names: %w", err)
 	}
-	defer rows.Close()
+	return services, nil
+}
 
-	var services []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			r.logger.Error("failed to scan service name", slog.String("error", err.Error()))
-			return nil, fmt.Errorf("scan service name: %w", err)
-		}
-		services = append(services, name)
+func calculateTotalCost(subs []domain.Subscription, reqStart, reqEnd time.Time) int {
+	total := 0
+	for _, sub := range subs {
+		overlapMonths := overlappingMonths(sub.StartDate, sub.EndDate, reqStart, reqEnd)
+		total += sub.Price * overlapMonths
+	}
+	return total
+}
+
+func overlappingMonths(subStart time.Time, subEnd *time.Time, reqStart, reqEnd time.Time) int {
+	var subEffectiveEnd time.Time
+	if subEnd != nil && !subEnd.IsZero() {
+		subEffectiveEnd = subEnd.AddDate(0, 1, -1)
+	} else {
+		subEffectiveEnd = reqEnd
 	}
 
-	return services, nil
+	overlapStart := subStart
+	if reqStart.After(overlapStart) {
+		overlapStart = reqStart
+	}
+
+	overlapEnd := subEffectiveEnd
+	if reqEnd.Before(overlapEnd) {
+		overlapEnd = reqEnd
+	}
+
+	if overlapStart.After(overlapEnd) {
+		return 0
+	}
+
+	months := (overlapEnd.Year()-overlapStart.Year())*12 + int(overlapEnd.Month()-overlapStart.Month()) + 1
+	if months < 0 {
+		return 0
+	}
+	return months
 }
