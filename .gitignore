@@ -1,0 +1,43 @@
+# Go
+/backend/*.exe
+/backend/*.exe~
+/backend/*.dll
+/backend/*.so
+/backend/*.dylib
+/backend/*.test
+/backend/*.out
+/backend/vendor/
+/backend/.env
+/backend/tmp/
+/backend/coverage.out
+
+
+# Node
+/frontend/node_modules/
+/frontend/.nuxt/
+/frontend/.output/
+/frontend/dist/
+/frontend/.env
+/frontend/.nitro/
+/frontend/.cache/
+/frontend/coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+postgres_data/
+
+# General
+.env.local
+.env.*.local
+*.log
+.env
